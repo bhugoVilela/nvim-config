@@ -1,6 +1,6 @@
 # SplashScreen
 My current implementation of a splash screen
-![photo](./splashscreen_photo.png)
+![photo](../../../splashscreen_photo.png)
 
 The key aspects of the implementation are:
 1. create a scratch buffer
