@@ -3,7 +3,7 @@ Built from Kickstart.nvim
 
 Mostly-single-file config, with some of my own plugins extracted into their own folders.
 
-[image](./splashscreen_photo.png)
+![image](./splashscreen_photo.png)
 
 ## My Favorite Features
 - Navigation with `<C-j>` `<C-k>` and submit with `<C-l>` (in cmp, nvim-tree, netrw, telescope)
