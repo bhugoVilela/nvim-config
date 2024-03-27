@@ -3,6 +3,8 @@ Built from Kickstart.nvim
 
 Mostly-single-file config, with some of my own plugins extracted into their own folders.
 
+I use it on a macbook pro and haven't bothered making it portable, when in linux I usually use vim with a small .vimrc
+
 ![image](./splashscreen_photo.png)
 
 ## My Favorite Features
