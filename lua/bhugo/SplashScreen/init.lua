@@ -124,7 +124,7 @@ local function redraw(buf_nr)
 	plugins = str_utils.surround(plugins, { h_padding = 1 })
 	apply_padding(plugins, get_padding(vim.fn.strdisplaywidth(plugins[1])))
 
-	lines = str_utils.concat_v(lines, empty_lines(1))
+	lines = str_utils.concat_v(lines, empty_lines(3))
 	apply_padding(logo, padding)
 	lines = str_utils.concat_v(lines, logo)
 	lines = str_utils.concat_v(lines, empty_lines(1))
@@ -140,11 +140,7 @@ local function redraw(buf_nr)
 	local recent = str_utils.concat_h(folders, files, ' ')
 	apply_padding(recent, get_padding(str_utils.get_max_width(recent)))
 	lines = str_utils.concat_v(lines, recent)
-	-- apply_padding(folders, get_padding(folders_padding))
-	-- lines = str_utils.concat_v(lines, folders)
-	-- lines = str_utils.concat_v(lines, { "" })
-	-- apply_padding(files, get_padding(folders_padding))
-	-- lines = str_utils.concat_v(lines, files)
+
 	lines = str_utils.concat_v(lines, empty_lines(1))
 
 	lines = str_utils.concat_v(lines, plugins)
@@ -175,7 +171,9 @@ local function syntax()
 	vim.cmd [[syntax match xSplashLogoBg /\v[═╝╔╗║╚╦╩╠╣]/]]
 	vim.cmd [[syntax match xSplashLogoOptionNumber /\v\[[0-9]\]/  nextgroup=xSplashLogoOptionContent skipwhite ]]
 	vim.cmd [[syntax match xSplashLogoOptionContent /\v.{-}\ze(\[|$)/ contained]]
-	vim.cmd [[syntax match xSplashWeekday /Tue/]]
+
+	local curr_week_day = vim.fn.strftime('%a')
+	vim.cmd("syntax match xSplashWeekday /"..curr_week_day.."/")
 	-- vim.cmd [[syntax region xSplashLogoOptionContent start=/\v(\b|~?\/)(\w+\/)*\w+(\.\w+)*\/*\b/ end=/\v(\n|\s)/]]
 	-- vim.cmd [[syntax match xSplashLogoOptionContent /\v(\b|~?\/)(\w+\/)*\w+(\.\w+)*\/*\b/ ]]
 
@@ -253,19 +251,18 @@ end
 --- Handle when a directory or file is selected
 local function handleSelect()
 	local match = extract_option()
-	print("'"..match.."'")
-	-- if match ~= nil and #match > 0 then
-	-- 	local path = Path:new(Path:new(match):expand())
-	-- 	local full_path = path:expand()
-	-- 	if path:is_dir() then
-	-- 		vim.cmd.cd(full_path)
-	-- 		local tree = require('nvim-tree.api').tree
-	-- 		tree.change_root(full_path)
-	-- 		tree.open({})
-	-- 	else
-	-- 		vim.cmd.e(match)
-	-- 	end
-	-- end
+	if match ~= nil and #match > 0 then
+		local path = Path:new(Path:new(match):expand())
+		local full_path = path:expand()
+		if path:is_dir() then
+			vim.cmd.cd(full_path)
+			local tree = require('nvim-tree.api').tree
+			tree.change_root(full_path)
+			tree.open({})
+		else
+			vim.cmd.e(match)
+		end
+	end
 end
 
 local function setupKeymaps(buffer_data)
