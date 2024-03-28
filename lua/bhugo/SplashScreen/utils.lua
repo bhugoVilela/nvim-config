@@ -1,4 +1,5 @@
 local M = {}
+local uv = vim.loop
 
 function M.take(src, n)
 	local new_table = {}
@@ -35,6 +36,21 @@ function M.execute(command)
 	local output = vim.fn.system(command)
 	output = string.sub(output, 1, #output - 1)
 	return output
+end
+
+-- Creating a simple setInterval wrapper
+function M.setInterval(interval, callback)
+	local timer = uv.new_timer()
+	timer:start(interval, interval, function()
+		callback()
+	end)
+	return timer
+end
+
+-- And clearInterval
+function M.clearInterval(timer)
+	timer:stop()
+	timer:close()
 end
 
 return M

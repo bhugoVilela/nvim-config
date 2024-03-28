@@ -5,6 +5,9 @@ local widget = require('bhugo.SplashScreen.widget')
 local take = require('bhugo.SplashScreen.utils').take
 local MRU_LIMIT = 5
 local Recent = require('bhugo.Recent')
+local utils = require('bhugo.SplashScreen.utils')
+
+local augroup = vim.api.nvim_create_augroup('splashscreen', { clear = true })
 
 local MRU_FOLDERS_TITLE = 'Recent Folders:'
 local MRU_FILES_TITLE = 'Recent Files:'
@@ -19,8 +22,10 @@ local function list_mru_files()
 	return Recent.load_recent(MRU_LIMIT, 'file')
 end
 
-local function get_curr_win_width()
-	local win_id = vim.api.nvim_get_current_win()
+local function get_curr_win_width(buf_nr)
+	local buf_win_id = buf_nr and vim.fn.win_findbuf(buf_nr) or nil
+	buf_win_id = buf_win_id and buf_win_id[1] or nil
+	local win_id = buf_win_id or vim.api.nvim_get_current_win()
 	local width = vim.api.nvim_win_get_width(win_id)
 	return width
 end
@@ -43,8 +48,8 @@ end
 --- Returns the padding needed to be applied so
 --- that a string with `content_width` width is centered
 --- @param content_width number
-local function get_padding(content_width)
-	local total_width = get_curr_win_width() - 10
+local function get_padding(content_width, buf_nr)
+	local total_width = get_curr_win_width(buf_nr) - 10
 	local padding = 0
 	if content_width < total_width then
 		padding = (total_width - content_width) / 2
@@ -105,7 +110,7 @@ local function redraw(buf_nr)
 
 	local logo = vim.fn.split(logo_str, '\n', false)
 	local width = vim.fn.strdisplaywidth(logo[1])
-	local padding = get_padding(width)
+	local padding = get_padding(width, buf_nr)
 	local separator = empty_lines(3)
 	local folders_list = list_mru_folders()
 	local folders = get_list_lines(0, list_mru_folders(), MRU_FOLDERS_TITLE)
@@ -117,12 +122,12 @@ local function redraw(buf_nr)
 	local lines = {}
 
 	local widget = widget.get_full_widget()
-	apply_padding(widget, get_padding(vim.fn.strdisplaywidth(widget[1])))
+	apply_padding(widget, get_padding(vim.fn.strdisplaywidth(widget[1]), buf_nr))
 
 	local plugins = list_plugins()
 	plugins = str_utils.to_columns(plugins, { max_height = 8 })
 	plugins = str_utils.surround(plugins, { h_padding = 1 })
-	apply_padding(plugins, get_padding(vim.fn.strdisplaywidth(plugins[1])))
+	apply_padding(plugins, get_padding(vim.fn.strdisplaywidth(plugins[1]), buf_nr))
 
 	lines = str_utils.concat_v(lines, empty_lines(3))
 	apply_padding(logo, padding)
@@ -132,13 +137,13 @@ local function redraw(buf_nr)
 	lines = str_utils.concat_v(lines, empty_lines(1))
 	local folders_padding = vim.fn.strdisplaywidth(folders[1])
 	local cursor_line = #lines + 2
-	local cursor_col = get_padding(folders_padding) + 1
+	local cursor_col = get_padding(folders_padding, buf_nr) + 1
 
 	folders = str_utils.normalized(folders)
 	files = str_utils.normalized(files)
 	
 	local recent = str_utils.concat_h(folders, files, ' ')
-	apply_padding(recent, get_padding(str_utils.get_max_width(recent)))
+	apply_padding(recent, get_padding(str_utils.get_max_width(recent), buf_nr))
 	lines = str_utils.concat_v(lines, recent)
 
 	lines = str_utils.concat_v(lines, empty_lines(1))
@@ -270,15 +275,72 @@ local function setupKeymaps(buffer_data)
 	vim.keymap.set('n', '<Cr>', handleSelect, { buffer = buffer_data.buf_nr })
 end
 
+local function setup_rerender(buffer_data, render_interval)
+	local auto_rerender = true
+	local rerender_on_resize = true
+
+	render_interval = render_interval or 10000
+
+	local buf_nr = buffer_data.buf_nr
+	local interval = nil
+
+	local function rerender()
+		vim.schedule_wrap(function()
+			redraw(buf_nr)
+			-- local win_nr = vim.fn.win_findbuf(buf_nr)
+			-- win_nr = (win_nr or {})[1]
+			-- if win_nr then
+			-- 	vim.fn.win_execute(win_nr, 'redraw!')
+			-- end
+		end)()
+	end
+
+	vim.api.nvim_create_autocmd('WinResized', {
+		group = augroup,
+		callback = function()
+			if not rerender_on_resize then
+				return
+			end
+			rerender()
+		end
+	})
+
+	vim.api.nvim_create_autocmd('BufWinEnter', {
+		group = augroup,
+		buffer = buf_nr,
+		callback = function()
+			if interval or not auto_rerender then
+				return
+			end
+			interval = utils.setInterval(render_interval, rerender)
+			rerender()
+		end
+	})
+
+	vim.api.nvim_create_autocmd('BufWinLeave', {
+		group = augroup,
+		buffer = buf_nr,
+		callback = function()
+			if not interval then
+				return
+			end
+			utils.clearInterval(interval)
+			interval = nil
+		end
+	})
+
+end
+
 ---Shows the dashboard if vim.argc() is 0 or if forced
 local function showSplashScreen(force)
 	if vim.fn.argc(-1) == 0 or force then
 		local buffer_data = createBuffer()
+		setup_rerender(buffer_data)
 		display_buffer(buffer_data)
 		vim.defer_fn(function()
+			syntax()
+			highlight()
 			vim.api.nvim_buf_call(buffer_data.buf_nr, function()
-				syntax()
-				highlight()
 				setupKeymaps(buffer_data)
 			end)
 		end, 1)
