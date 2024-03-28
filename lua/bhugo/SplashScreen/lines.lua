@@ -21,9 +21,14 @@ end
 
 --- Get the total width of a string
 --- Doesn't look for new lines
---- @param lines string | Lines
+--- @generic T : string | Lines
+--- @param lines T
 --- @return number
 function M.get_max_width(lines)
+	if type(lines) == "string" then
+		return vim.fn.strdisplaywidth(lines)
+	end
+
 	local max = 0
 	if type(lines) == 'string' then
 		return vim.fn.strdisplaywidth(lines)
@@ -220,24 +225,23 @@ end
 ---@param width number
 ---@return string
 function M.center_str(str, width)
-	if width <= #str then
+	local cur_width = vim.fn.strdisplaywidth(str)
+	if width <= cur_width then
 		return str
 	end
-	local int = width - #str
+	local int = width - cur_width
 	local padding = math.floor((int) / 2)
 	local ws = M.repeating(" ", padding)
-	if padding % 2 == 1 then
-		str = " "..str
-	end
 	return ws..str..ws
 end
 
 ---Makes all lines have the same width
 ---(width of the longest line)
 ---@param lines Lines
+---@param target_width number? if nil then longest line will be used
 ---@return Lines
-function M.normalized(lines)
-	local width = M.get_max_width(lines)
+function M.normalized(lines, target_width)
+	local width = target_width or M.get_max_width(lines)
 	local res = {}
 	for index, line in ipairs(lines) do
 		table.insert(res, line)
@@ -290,6 +294,28 @@ function M.fill(lines, n)
 		table.insert(lines, "")
 	end
 	return lines
+end
+
+---@generic T: string | Lines
+---@param str T
+---@param width number
+---@return T
+function M.ellipsizedToWidth(str, width)
+	if type(str) == 'string' then
+		local curr_width = vim.fn.strdisplaywidth(str)
+
+		if curr_width <= width then
+			return str
+		else
+			str = str:sub(0, width-3)..'...'
+		end
+		return str
+	end
+	local res = {}
+	for i, line in ipairs(str) do
+		table.insert(res, M.ellipsizedToWidth(line, width))
+	end
+	return res
 end
 
 return M

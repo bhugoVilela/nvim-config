@@ -1,6 +1,9 @@
 ---This module provides a widget with time, day and some system stats
 local M = {}
 
+local Holidays = require('bhugo.SplashScreen.holidays')
+local utils = require('bhugo.SplashScreen.utils')
+local execute = utils.execute
 local str_utils = require('bhugo.SplashScreen.lines')
 local get_max_width = str_utils.get_max_width
 local concat_v = str_utils.concat_v
@@ -9,7 +12,6 @@ local box_concat_h = str_utils.box_concat_h
 local get_number = str_utils.get_number
 local surround = str_utils.surround
 local center_str = str_utils.center_str
-
 
 ---Creates the time widget:
 ---╔══════════════════════════════════════╦
@@ -37,20 +39,36 @@ local function get_time_widget()
 
 	local weekday = vim.fn.strftime('%d %B %Y')
 	weekday = center_str(weekday, clock_width)
-	local lower = surround({ weekday }, { h_padding = h_padding })
+
+	local lower = { weekday }
+
+	local holidays = Holidays.get_curr_and_next_holiday(Holidays.get_holidays().holidays)
+	local holidayStr = nil
+	local holidayStr2 = nil
+	if holidays.todayHoliday then
+		holidayStr = 'TODAY: '..holidays.todayHoliday.name
+	elseif holidays.nextHoliday then
+		holidayStr = 'Next Holiday: '..holidays.nextHoliday.name
+		local plural = holidays.nextHoliday.daysUntil > 1 and 's' or ''
+		holidayStr2 = holidays.nextHoliday.startDate..' '..'(in '..holidays.nextHoliday.daysUntil..' day'..plural..')'
+	end
+
+	if holidayStr then
+		holidayStr = center_str(holidayStr, clock_width)
+		lower = concat_v(lower, { holidayStr })
+		if holidayStr2 then
+			holidayStr2 = center_str(holidayStr2, clock_width)
+			lower = concat_v(lower, { holidayStr2 })
+		end
+	end
+
+	lower = str_utils.ellipsizedToWidth(lower, clock_width)
+	lower = str_utils.normalized(lower, clock_width)
+	lower = surround(lower, { h_padding = h_padding })
 
 	local res = box_concat_v(upper, lower)
 
 	return res
-end
-
----Execute a command a return the stdout
----@param command string command to execute
----@return string stdout
-local function execute(command)
-	local output = vim.fn.system(command)
-	output = string.sub(output, 1, #output - 1)
-	return output
 end
 
 ---Creates the system stats widget:
@@ -99,7 +117,5 @@ function M.get_full_widget()
 	local sys_widget = get_sys_widget(#time_widget)
 	return box_concat_h(time_widget, sys_widget)
 end
-
-
 
 return M
