@@ -296,6 +296,15 @@ function M.fill(lines, n)
 	return lines
 end
 
+function M.square(width, height, char)
+	char = char or ' '
+	local matrix = {}
+	for i = 1, height, 1 do
+		matrix[i] = M.repeating(char, width)
+	end
+	return matrix
+end
+
 ---@generic T: string | Lines
 ---@param str T
 ---@param width number
