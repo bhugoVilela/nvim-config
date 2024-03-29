@@ -13,10 +13,11 @@ if &shortmess =~ 'A'
 else
   set shortmess=aoO
 endif
-badd +112 lua/bhugo/ui/init.lua
-badd +299 lua/bhugo/SplashScreen/lines.lua
-badd +0 http://www.lua.org/manual/5.1/manual.html\#pdf-table.remove
-badd +105 lua/bhugo/SplashScreen/ascii.lua
+badd +4 test.lua
+badd +99 lua/bhugo/ui/init.lua
+badd +47 ~/.local/share/nvim/lazy/which-key.nvim/lua/which-key/text.lua
+badd +0 ~/.local/share/nvim/lazy/which-key.nvim/lua/which-key/view.lua
+badd +0 ~/.local/share/nvim/lazy/which-key.nvim/lua/which-key/layout.lua
 argglobal
 %argdel
 edit lua/bhugo/ui/init.lua
@@ -36,10 +37,9 @@ set winminheight=0
 set winheight=1
 set winminwidth=0
 set winwidth=1
-exe 'vert 1resize ' . ((&columns * 114 + 92) / 185)
-exe 'vert 2resize ' . ((&columns * 70 + 92) / 185)
+exe 'vert 1resize ' . ((&columns * 91 + 81) / 163)
+exe 'vert 2resize ' . ((&columns * 71 + 81) / 163)
 argglobal
-balt lua/bhugo/SplashScreen/lines.lua
 setlocal fdm=expr
 setlocal fde=nvim_treesitter#foldexpr()
 setlocal fmr={{{,}}}
@@ -48,28 +48,41 @@ setlocal fdl=9999
 setlocal fml=1
 setlocal fdn=20
 setlocal fen
-14
+31
 normal! zo
-48
+92
 normal! zo
-63
+136
 normal! zo
-97
+137
 normal! zo
-99
+169
 normal! zo
-110
+172
 normal! zo
-let s:l = 112 - ((18 * winheight(0) + 19) / 38)
+178
+normal! zo
+192
+normal! zo
+212
+normal! zo
+214
+normal! zo
+224
+normal! zo
+257
+normal! zo
+let s:l = 99 - ((37 * winheight(0) + 26) / 52)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 112
-normal! 055|
+keepjumps 99
+normal! 050|
+lcd ~/.config/nvim
 wincmd w
 argglobal
 enew
-balt lua/bhugo/ui/init.lua
+balt ~/.config/nvim/lua/bhugo/ui/init.lua
 setlocal fdm=expr
 setlocal fde=nvim_treesitter#foldexpr()
 setlocal fmr={{{,}}}
@@ -80,8 +93,8 @@ setlocal fdn=20
 setlocal fen
 lcd ~/.config/nvim
 wincmd w
-exe 'vert 1resize ' . ((&columns * 114 + 92) / 185)
-exe 'vert 2resize ' . ((&columns * 70 + 92) / 185)
+exe 'vert 1resize ' . ((&columns * 91 + 81) / 163)
+exe 'vert 2resize ' . ((&columns * 71 + 81) / 163)
 tabnext 1
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf

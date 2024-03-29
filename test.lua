@@ -1,10 +1,15 @@
-local utf8 = require('bhugo.utf'):init()
--- local sub = string.sub
-local sub = function(str, start)
-  return vim.fn.strcharpart(str, start)
+local Test = {}
+Test.__index = Test
+setmetatable(Test, {
+  __call = function(...) return Test:new(...) end
+})
+
+function Test:new() 
+  return setmetatable({}, self)
 end
-local H, NW, NE, V, SW, SE = "═", "╔",  "╗", "║", "╚", "╝"
-local str = H..H..H
-local new = sub(str, 1)..V..sub(str, 3)
-print(str)
-print(new)
+
+function Test:print() 
+  print('yo')
+end
+
+Test()
