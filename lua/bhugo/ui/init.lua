@@ -1,6 +1,7 @@
 local str_utils = require('bhugo.SplashScreen.lines')
 local utils = require('bhugo.SplashScreen.utils')
 local ascii = require('bhugo.SplashScreen.ascii')
+local Block = require('bhugo.ui.block')
 
 local hl_orange = 'CurSearch'
 local hl_green = 'DevIconCsv'
@@ -9,8 +10,14 @@ local hl_pink = 'DevIconCPlusPlus'
 local hl_grey = 'Cursor'
 
 local function new_self(...)
-	local class, arg1 = ...
-	return class:new(arg1)
+	local class, arg1, arg2, arg3 = ...
+	local new_table = {}
+	for _, value in ipairs(arg1 or {}) do
+		table.insert(new_table, value)
+	end
+	if arg2 then table.insert(new_table, arg2) end
+	if arg3 then table.insert(new_table, arg3) end
+	return class:new(new_table)
 end
 
 local function set_border(matrix, width)
@@ -61,39 +68,6 @@ function Span:height()
 	return 1
 end
 
----@class Style
----@field height number? height of the element
----@field width number?
----@field align 'center' | 'start' | 'end' | 'stretch'?
----@field justify 'center' | 'start' | 'end' | 'stretch'?
----@field x number? x offset from content_box
----@field y number? y offest from content_box
----@field overflow 'ellipsize' | 'hidden' | 'visible'?
----@field border boolean?
----@field boxSizing 'borderBox' | 'contentBox'? defaults to borderBox
----@field highlight string? highlight group name
-
----@class Computed: Style
----@field absolute_x number?
----@field absolute_y number?
----@field border_width number?  default = 1
----@field border_height number? default = 1
----@field content_width number? width of content box
----@field content_height number? height of content box
----@field content_box { minX: number, maxX: number, minY: number, maxY: number }?
----@field depth number?
----@field order number?
----@field height number? element height as if it's borderBox
----@field width number? element width as if it's borderBox
-
----@class Block
----@field content (Span|Block)[]
----@field style table
----@field tag 'Block'
-local Block = {}
-
-Block.__index = Block
-
 setmetatable(Block, {
 	__call = new_self
 })
@@ -128,6 +102,7 @@ end
 function Block:render(parent)
 	self.computed = vim.tbl_extend('force', self.computed, self.style)
 	self.computed.depth = (((parent or {}).computed or {}).depth or 1) + 1
+	self.computed.position = self.computed.position or 'relative'
 
 	self.computed.highlight = self.style.highlight or ((parent or {}).computed or {}).highlight
 
@@ -185,16 +160,28 @@ function Block:render(parent)
 		maxY = border_height + self.computed.content_height
 	}
 
+
 	-- second pass
 	for i, child in ipairs(self.content) do
-		if child.computed.width ~= self.computed.content_width and not child.style.x then
+		local compute_alignment = not self.computed.x or self.computed.position == 'relative'
+		if child.computed.width ~= self.computed.content_width and compute_alignment then
 			local offset = self.computed.content_width - child.computed.width
-
 			if self.computed.align == 'end' then
 				child.computed.x = offset
 			elseif self.computed.align == 'center' then
 				child.computed.x = math.floor(offset / 2)
 			end
+		end
+		if child.computed.position == 'absolute' then
+			if child.style.x then
+				child.computed.x = child.style.x
+			end
+			if child.style.y then
+				child.computed.y = child.style.y
+			end
+		elseif child.computed.position == 'relative' then
+			child.computed.x = (child.computed.x or 0) + (child.style.x or 0)
+			child.computed.y = (child.computed.y or 0) + (child.style.y or 0)
 		end
 	end
 
@@ -216,6 +203,7 @@ function compute_absolute_positions(element, parent)
 		child:compute_absolute_positions(element)
 	end
 end
+
 Block.compute_absolute_positions = compute_absolute_positions
 Span.compute_absolute_positions = compute_absolute_positions
 
@@ -312,7 +300,7 @@ end
 
 ---@param element Block | Span
 ---@param y number
-local function intersects(element, y) 
+local function intersects(element, y)
 	local min_y = element.computed.absolute_y
 	local height = element.computed.height
 	return min_y <= y and (min_y + height) > y
@@ -374,7 +362,7 @@ local function get_highlight_chunks(element)
 			end
 			start = child_end
 		end
-	    ::continue::
+		::continue::
 	end
 
 	if element.tag == 'Block' then
@@ -388,7 +376,7 @@ local function get_highlight_chunks(element)
 	return chunks
 end
 
-local Weekdays = Span { 'Mon Tue Wed Thu Fri Sat Sun', { highlight=nil } }
+local WeekdaySelector = Span { 'Mon Tue Wed Thu Fri Sat Sun', { highlight = nil } }
 
 local time = Span { '09:13 am', { highlight = hl_blue } }
 
@@ -396,23 +384,23 @@ local hugo = Span { "Hugo", { highlight = hl_green } }
 
 local widget2 = Block {
 	hugo,
-	Span { "Carolina", { highlight=hl_pink } },
-	{ border = true, highlight=hl_orange }
+	Span { "Carolina", { highlight = hl_pink } },
+	{ border = true, highlight = hl_orange }
 }
 
 local widget3 = Block:from_lines(
 	str_utils.get_number('20:00'),
-	{}
+	{ highlight = hl_blue }
 )
 
 -- Block.__call = function(this,...) Block.new(this, ...) end
 local widget = Block({
-	Weekdays,
+	WeekdaySelector,
 	time,
 	widget2,
-	Span:new({" ", {}}),
+	Span:new({ " ", {} }),
 	widget3,
-	{ dbg = 'root', border = true, highlight='Cursor', align='center' }
+	{ dbg = 'root', border = true, highlight = 'Cursor', align = 'center' }
 })
 
 
@@ -450,7 +438,7 @@ function add_highlights(buf_nr, highlights)
 	end)
 	local cur_line, content = nil, nil
 	for _, highlight in ipairs(highlights) do
-		local line, start, finish, elem = unpack(highlight,1, 4)
+		local line, start, finish, elem = unpack(highlight, 1, 4)
 		if line ~= cur_line then
 			cur_line = line
 			content = vim.api.nvim_buf_get_lines(buf_nr, line, line + 1, false)[1]
@@ -473,32 +461,67 @@ end
 -- widget:render()
 -- widget:compute_absolute_positions(nil)
 
-render_to_buffer(26, widget)
+-- render_to_buffer(26, widget)
 -- print(vim.inspect(get_highlight_chunks(widget3)))
 
-function Weekdays(today)
+
+-- Define Components and Style
+
+function WeekdaySelector(today)
 	local days = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" }
-	local components = utils.map(days, function(it, idx)
-		local component = Span { it }
-		if idx == today then
-			component.style.highlight = 'CurSearch'
-		end
-		return component
+
+	local week_days = utils.map(days, function(it)
+		return Span { it, { highlight = 'none' } }
 	end)
 
-	local style = { border = true }
+	week_days[today].style.highlight = hl_green
 
-	table.insert(components, style)
-	return Block(components)
+	local selector = Block(week_days, { dbg='week'})
+
+	selector.style.highlight = hl_blue
+	selector.style.border = true
+	selector.style.x = 0 
+
+	return selector
 end
 
-local elem = Weekdays(1)
-elem:render()
-local lines = elem:to_text()
--- print(vim.inspect(elem))
-print(str_utils.to_string(lines))
-render_to_buffer(weekdays)
 
--- print(str_utils.to_string(Weekdays(1):render():to_text()))
+function Clock(time)
+	local lines = str_utils.get_number(time)
+
+	return Block:from_lines(lines, {
+		highlight = hl_green
+	})
+end
 
 
+function Widget(time, weekday)
+	local clock = Clock(time)
+	local weekday_selector = WeekdaySelector(weekday)
+
+	return Block:new({
+		clock,
+		weekday_selector,
+		{ align = 'center', border = true, highlight = hl_pink }
+	})
+end
+
+function on_attach(buf_nr)
+	local idx = 1
+	local time = vim.fn.strftime('%H:%M')
+
+	render_to_buffer(buf_nr, Widget(time, idx))
+
+	vim.keymap.set('n', '<Down>', function()
+		idx = idx + 1
+		local elem = Widget(time, idx)
+		render_to_buffer(buf_nr, elem)
+	end, {})
+	vim.keymap.set('n', '<Up>', function()
+		idx = idx - 1
+		local elem = Widget(time, idx)
+		render_to_buffer(buf_nr, elem)
+	end, {})
+end
+
+on_attach(46)
