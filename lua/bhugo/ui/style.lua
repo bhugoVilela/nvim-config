@@ -15,6 +15,7 @@
 ---@field highlight string? highlight group name
 ---@field orientation Orientation? 
 ---@field position Position?  defaults to relative, affects how x and y affect positioning
+---@field gap number?  defaults to relative, affects how x and y affect positioning
 
 ---@class Computed: Style
 ---@field absolute_x number?

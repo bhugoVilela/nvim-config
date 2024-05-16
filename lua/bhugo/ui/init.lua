@@ -2,6 +2,8 @@ local str_utils = require('bhugo.SplashScreen.lines')
 local utils = require('bhugo.SplashScreen.utils')
 local ascii = require('bhugo.SplashScreen.ascii')
 local Block = require('bhugo.ui.block')
+local set_border = require('bhugo.ui.utils').set_border
+local str_repl = require('bhugo.ui.utils').str_repl
 
 local hl_orange = 'CurSearch'
 local hl_green = 'DevIconCsv'
@@ -20,24 +22,6 @@ local function new_self(...)
 	return class:new(new_table)
 end
 
-local function set_border(matrix, width)
-	local H, NW, NE, V, SW, SE = "═", "╔", "╗", "║", "╚", "╝"
-	local top = NW .. str_utils.repeating(H, width - 2) .. NE
-	local bottom = SW .. str_utils.repeating(H, width - 2) .. SE
-	matrix[1] = top
-	matrix[#matrix] = bottom
-	for i = 2, #matrix - 1, 1 do
-		local line = matrix[i]
-		matrix[i] = V .. vim.fn.strcharpart(line, 1, vim.fn.strdisplaywidth(line) - 2) .. V
-	end
-end
-
-function str_repl(str, x, c)
-	x = x - 1
-	local pre = vim.fn.strcharpart(str, 0, x)
-	local post = vim.fn.strcharpart(str, x + 1)
-	return pre .. c .. post
-end
 
 ---@class Span
 ---@field content string
@@ -58,14 +42,6 @@ function Span:new(content)
 		computed = {},
 		tag = 'Text'
 	}, self)
-end
-
-function Span:width()
-	return vim.fn.strdisplaywidth(self.content)
-end
-
-function Span:height()
-	return 1
 end
 
 setmetatable(Block, {
@@ -91,8 +67,8 @@ function Block:from_lines(lines, style)
 end
 
 function Span:render(parent)
-	self.computed.height = self:height()
-	self.computed.width = self:width()
+	self.computed.height = 1
+	self.computed.width = vim.fn.strdisplaywidth(self.content)
 	self.computed.depth = (((parent or {}).computed or {}).depth or 1) + 1
 	self.computed.highlight = self.style.highlight or parent.computed.highlight
 	return self
@@ -103,6 +79,8 @@ function Block:render(parent)
 	self.computed = vim.tbl_extend('force', self.computed, self.style)
 	self.computed.depth = (((parent or {}).computed or {}).depth or 1) + 1
 	self.computed.position = self.computed.position or 'relative'
+	self.computed.gap = self.computed.gap or 0
+	self.computed.orientation = self.computed.orientation or 'vertical'
 
 	self.computed.highlight = self.style.highlight or ((parent or {}).computed or {}).highlight
 
@@ -119,19 +97,36 @@ function Block:render(parent)
 	self.computed.content_height = 0
 	self.computed.content_width = 0
 
+	local vertical = self.computed.orientation ~= 'horizontal'
+	local horizontal = self.computed.orientation == 'horizontal'
+
 	-- first pass
 	for i, child in ipairs(self.content) do
 		child.computed.order = i
-		child.computed.x = (child.style.x or 0)
-		child.computed.y = (child.style.y or 0) + self.computed.content_height
+		child.computed.x = (child.style.x or 0) + (horizontal and self.computed.content_width or 0)
+		child.computed.y = (child.style.y or 0) + (vertical and self.computed.content_height or 0)
 
 		child:render(self)
 
-		self.computed.content_height = self.computed.content_height + child.computed.height
-		self.computed.content_width = math.max(
-			self.computed.content_width,
-			child.computed.width
-		)
+		if vertical then
+			self.computed.content_height = self.computed.content_height + child.computed.height
+			self.computed.content_width = math.max(
+				self.computed.content_width,
+				child.computed.width
+			)
+			if i < #self.content then
+				self.computed.content_height = self.computed.content_height + self.computed.gap
+			end
+		else
+			self.computed.content_width = self.computed.content_width + child.computed.width
+			self.computed.content_height = math.max(
+				self.computed.content_height,
+				child.computed.height
+			)
+			if i < #self.content then
+				self.computed.content_width = self.computed.content_width + self.computed.gap
+			end
+		end
 	end
 
 	if not self.style.height then
@@ -163,15 +158,26 @@ function Block:render(parent)
 
 	-- second pass
 	for i, child in ipairs(self.content) do
-		local compute_alignment = not self.computed.x or self.computed.position == 'relative'
-		if child.computed.width ~= self.computed.content_width and compute_alignment then
-			local offset = self.computed.content_width - child.computed.width
-			if self.computed.align == 'end' then
-				child.computed.x = offset
-			elseif self.computed.align == 'center' then
-				child.computed.x = math.floor(offset / 2)
+		-- if child.computed.width ~= self.computed.content_width then
+		local h_offset = self.computed.content_width - child.computed.width
+		local v_offset = self.computed.content_height - child.computed.height
+		if self.computed.align == 'end' then
+			if vertical then
+				child.computed.x = h_offset
+			else
+				child.computed.y = v_offset
+			end
+		elseif self.computed.align == 'center' then
+			if vertical then
+				child.computed.x = math.floor(h_offset / 2)
+			else
+				child.computed.y = math.floor(v_offset / 2)
+			end
+			if self.style.dbg == 'dp' then
+				print(self.computed.content_width)
 			end
 		end
+		-- end
 		if child.computed.position == 'absolute' then
 			if child.style.x then
 				child.computed.x = child.style.x
@@ -179,7 +185,7 @@ function Block:render(parent)
 			if child.style.y then
 				child.computed.y = child.style.y
 			end
-		elseif child.computed.position == 'relative' then
+		else
 			child.computed.x = (child.computed.x or 0) + (child.style.x or 0)
 			child.computed.y = (child.computed.y or 0) + (child.style.y or 0)
 		end
@@ -193,6 +199,14 @@ function compute_absolute_positions(element, parent)
 		element.computed.absolute_x = 0
 		element.computed.absolute_y = 0
 	else
+		local vertical = parent.computed.orientation == 'vertical'
+		if parent.computed.align == 'stretch' then
+			if vertical then
+				element.computed.width = parent.computed.content_width
+			else
+				element.computed.height = parent.computed.content_height
+			end
+		end
 		element.computed.absolute_x = parent.computed.absolute_x + parent.computed.content_box.minX + element.computed.x
 		element.computed.absolute_y = parent.computed.absolute_y + parent.computed.content_box.minY + element.computed.y
 	end
@@ -265,38 +279,6 @@ function Block:to_text(parent_matrix)
 	return matrix
 end
 
----@param element Block | Span
----@return (Block | Span)[]
-function get_element_list(element)
-	local list = {}
-	function rec(element)
-		table.insert(list, element)
-		if element.tag == 'Text' then
-			return
-		end
-		for _, child in ipairs(element.content) do
-			rec(child)
-		end
-	end
-
-	rec(element)
-	table.sort(list, function(a, b)
-		if a.computed.absolute_y ~= b.computed.absolute_y then
-			return a.computed.absolute_y < b.computed.absolute_y
-		end
-
-		if a.computed.absolute_x ~= b.computed.absolute_x then
-			return a.computed.absolute_x < b.computed.absolute_x
-		end
-
-		if a.computed.depth ~= b.computed.depth then
-			return a.computed.depth < b.computed.depth
-		end
-
-		return a.computed.order < b.computed.order
-	end)
-	return list
-end
 
 ---@param element Block | Span
 ---@param y number
@@ -344,7 +326,7 @@ local function get_highlight_chunks(element)
 
 	if element.tag == 'Text' then
 		return {
-			{ min_y, min_x, max_x + 1, element }
+			{ min_y, min_x, max_x, element }
 		}
 	end
 
@@ -375,42 +357,12 @@ local function get_highlight_chunks(element)
 
 	return chunks
 end
-
-local WeekdaySelector = Span { 'Mon Tue Wed Thu Fri Sat Sun', { highlight = nil } }
-
-local time = Span { '09:13 am', { highlight = hl_blue } }
-
-local hugo = Span { "Hugo", { highlight = hl_green } }
-
-local widget2 = Block {
-	hugo,
-	Span { "Carolina", { highlight = hl_pink } },
-	{ border = true, highlight = hl_orange }
-}
-
-local widget3 = Block:from_lines(
-	str_utils.get_number('20:00'),
-	{ highlight = hl_blue }
-)
-
--- Block.__call = function(this,...) Block.new(this, ...) end
-local widget = Block({
-	WeekdaySelector,
-	time,
-	widget2,
-	Span:new({ " ", {} }),
-	widget3,
-	{ dbg = 'root', border = true, highlight = 'Cursor', align = 'center' }
-})
-
-
-
 -- widget2:render()
-str_utils.to_string(widget:render():to_text())
+-- str_utils.to_string(widget:render():to_text())
 -- print(vim.inspect(widget))
 --
-local list = get_element_list(widget)
-list = utils.map(list, function(it) return it.style.dbg end)
+-- local list = get_element_list(widget)
+-- list = utils.map(list, function(it) return it.style.dbg end)
 -- print(vim.inspect(list))
 
 function render_to_buffer(buf_nr, elem)
@@ -474,14 +426,21 @@ function WeekdaySelector(today)
 		return Span { it, { highlight = 'none' } }
 	end)
 
-	week_days[today].style.highlight = hl_green
+	local selectedEl = Block:new({
+		Span{ days[today] },
+		Span{ 'TODAY' },
+		Span{ 'X' },
+		{ align = 'center', highlight = hl_green }
+	})
 
-	local selector = Block(week_days, { dbg='week'})
+	week_days[today] = selectedEl
+
+	local selector = Block(week_days, { dbg='week' })
 
 	selector.style.highlight = hl_blue
 	selector.style.border = true
-	selector.style.x = 0 
-
+	selector.style.orientation = 'horizontal'
+	selector.style.gap = 1
 	return selector
 end
 
@@ -502,7 +461,7 @@ function Widget(time, weekday)
 	return Block:new({
 		clock,
 		weekday_selector,
-		{ align = 'center', border = true, highlight = hl_pink }
+		{ align = 'center' , border = true, highlight = hl_pink }
 	})
 end
 
@@ -524,4 +483,9 @@ function on_attach(buf_nr)
 	end, {})
 end
 
-on_attach(46)
+on_attach(21)
+
+return {
+	Span = Span,
+	render_to_buffer = render_to_buffer
+}

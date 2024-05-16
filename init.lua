@@ -103,7 +103,47 @@ require('lazy').setup({
   -- {
   --   dir = '/Users/bhugo/code/nvim-plugins/GameOfLife/'
   -- },
+  -- ChatGPT
+  {
+    "robitx/gp.nvim",
+    config = function()
+      require('gp').setup {
+        openai_api_key = { "cat", "/Users/bhugo/.config/.openai_api_key" }
+      }
+    end,
+    cmd = {
+      "GpChatNew", "GpChatPaste", "GpChatToggle", "GpChatFinder", "GpChatDelete",
+      "GpRewrite", "GpAppend", "GpPrepend", "GpEnew", "GpNew", "GpVnew", "GpTabnew",
+      "GpPopup", "GpImplement", "GpContext", "GpAgent", "GpNextAgent", "GpImage", "GpImageAgent",
+      "GpStop", "GpInspectPlugin"
+    }
+  },
+  {
+    'stevearc/oil.nvim',
+    opts = {
+      keymaps = {
+        ['<C-l>'] = 'actions.select',
+        ['<C-h>'] = 'actions.parent',
+        ['<C-v>'] = 'actions.select_vsplit',
+        ['<C-s>'] = 'actions.select_split',
+      }
+    },
+    dependencies = { "nvim-tree/nvim-web-devicons" }
+  },
   -- DAP
+  {
+    dir = '/Users/bhugo/code/nvim-plugins/TextUI/',
+    dependencies = {
+      'tjdevries/stackmap.nvim'
+    }
+  },
+  {
+    dir = '/Users/bhugo/code/nvim-plugins/Spotify/',
+    dependencies = {
+      'tjdevries/stackmap.nvim',
+      '/Users/bhugo/code/nvim-plugins/TextUI/'
+    }
+  },
   {
     'mfussenegger/nvim-dap',
     config = function()
@@ -394,6 +434,8 @@ require('lazy').setup({
         vim.cmd.colorscheme("rose-pine-main")
         vim.cmd("hi IblIndent guifg=#201F30")
         vim.cmd("hi IblScope guifg=#302E48")
+        vim.cmd("hi clear netrwMarkFile")
+        vim.cmd("hi link netrwMarkFile CurSearch")
         require('ibl').update({})
       end, 1)
     end,
@@ -493,6 +535,9 @@ vim.api.nvim_create_user_command('CWD', ':cd %:p:h', {})
 vim.api.nvim_create_user_command('TCWD', ':tcd %:p:h', {})
 vim.api.nvim_create_user_command('W', ':w', {})
 vim.g.netrw_banner = 0
+vim.g.netrw_localcopydircmd = 'cp -r'
+vim.o.splitright = true
+vim.o.splitbelow = true
 
 -- [[ Neovide ]]
 -- Allow clipboard copy paste in neovim
@@ -562,6 +607,8 @@ vim.keymap.set("v", "gx", function()
   require('bhugo.xref').jump_to_visual_xref()
 end, { silent = true, desc = "Jump to the xref (file:line:col) in visual selection" })
 
+vim.keymap.set("n", "<leader>t", "<Plug>PlenaryTestFile", { desc = 'Run Plenary Test'})
+
 -- [[ Highlight on yank ]]
 local highlight_group = vim.api.nvim_create_augroup('YankHighlight', { clear = true })
 vim.api.nvim_create_autocmd('TextYankPost', {
@@ -572,9 +619,14 @@ vim.api.nvim_create_autocmd('TextYankPost', {
   pattern = '*',
 })
 
+
+-- overwrite Ex with Oil
+vim.api.nvim_create_user_command('Explore', 'Oil', { desc='launch Oil'})
+
 -- [[ Configure Telescope ]]
 require('telescope').setup {
   defaults = {
+    default_file_explorer = true,
     mappings = {
       i = {
         ['<C-u>'] = false,
@@ -728,22 +780,22 @@ local on_attach = function(_, bufnr)
 end
 
 -- document existing key chains
-require('which-key').register {
-  ['<leader>c'] = { name = '[C]ode', _ = 'which_key_ignore' },
-  ['<leader>d'] = { name = '[D]ocument', _ = 'which_key_ignore' },
-  ['<leader>g'] = { name = '[G]it', _ = 'which_key_ignore' },
-  ['<leader>h'] = { name = 'Git [H]unk', _ = 'which_key_ignore' },
-  ['<leader>r'] = { name = '[R]ename', _ = 'which_key_ignore' },
-  ['<leader>s'] = { name = '[S]earch', _ = 'which_key_ignore' },
-  ['<leader>t'] = { name = '[T]oggle', _ = 'which_key_ignore' },
-  ['<leader>w'] = { name = '[W]orkspace', _ = 'which_key_ignore' },
-}
+-- require('which-key').register {
+--   ['<leader>c'] = { name = '[C]ode', _ = 'which_key_ignore' },
+--   ['<leader>d'] = { name = '[D]ocument', _ = 'which_key_ignore' },
+--   ['<leader>g'] = { name = '[G]it', _ = 'which_key_ignore' },
+--   ['<leader>h'] = { name = 'Git [H]unk', _ = 'which_key_ignore' },
+--   ['<leader>r'] = { name = '[R]ename', _ = 'which_key_ignore' },
+--   ['<leader>s'] = { name = '[S]earch', _ = 'which_key_ignore' },
+--   ['<leader>t'] = { name = '[T]oggle', _ = 'which_key_ignore' },
+--   ['<leader>w'] = { name = '[W]orkspace', _ = 'which_key_ignore' },
+-- }
 -- register which-key VISUAL mode
 -- required for visual <leader>hs (hunk stage) to work
-require('which-key').register({
-  ['<leader>'] = { name = 'VISUAL <leader>' },
-  ['<leader>h'] = { 'Git [H]unk' },
-}, { mode = 'v' })
+-- require('which-key').register({
+--   ['<leader>'] = { name = 'VISUAL <leader>' },
+--   ['<leader>h'] = { 'Git [H]unk' },
+-- }, { mode = 'v' })
 
 -- mason-lspconfig requires that these setup functions are called in this order
 -- before setting up the servers.
@@ -838,6 +890,7 @@ cmp.setup {
 -- Use buffer source for `/` and `?` (if you enabled `native_menu`, this won't work anymore).
 cmp.setup.cmdline({ '/', '?' }, {
   mapping = cmp.mapping.preset.cmdline({
+    ['<C-l>'] = { c = cmp.mapping.confirm({ select = true }) },
     ['<C-k>'] = { c = cmp.mapping.select_prev_item({ behavior = cmp.SelectBehavior.Insert }) },
     ['<C-j>'] = { c = cmp.mapping.select_next_item({ behavior = cmp.SelectBehavior.Insert }) },
   }),
@@ -847,6 +900,7 @@ cmp.setup.cmdline({ '/', '?' }, {
 })
 cmp.setup.cmdline(':', {
   mapping = cmp.mapping.preset.cmdline({
+    ['<C-l>'] = { c = cmp.mapping.confirm({ select = true }) },
     ['<C-k>'] = { c = cmp.mapping.select_prev_item({ behavior = cmp.SelectBehavior.Insert }) },
     ['<C-j>'] = { c = cmp.mapping.select_next_item({ behavior = cmp.SelectBehavior.Insert }) },
   }),
@@ -1016,4 +1070,24 @@ showSplashScreen()
 
 require('bhugo.Recent').add_cwd(nil, true, 5000)
 
+function CloneHighlightAndMakeBold(group_name, target_group)
+  local hl = vim.api.nvim_get_hl(0, { name = group_name })
+  hl.bold = true
+  vim.api.nvim_set_hl(0, target_group, hl)
+end
+
+--TULA
+vim.api.nvim_create_augroup('Tula', { clear = true })
+vim.api.nvim_create_autocmd({ 'BufNewFile', 'BufRead' }, {
+  pattern = "*.tula",
+  callback = function()
+    -- CloneHighlightAndMakeBold("Keyword", "boldKeyword")
+    vim.cmd[[setfiletype tula]]
+    vim.cmd[[setlocal syntax=tula]]
+    vim.cmd[[setlocal commentstring=--%s]]
+    vim.cmd[[set conceallevel=2]]
+    vim.cmd[[hi link Conceal Keyword]]
+    -- CloneHighlightAndMakeBold("Keyword", "Conceal")
+  end
+})
 
