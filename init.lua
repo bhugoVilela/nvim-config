@@ -124,7 +124,7 @@ require('lazy').setup({
     "robitx/gp.nvim",
     config = function()
       require('gp').setup {
-        openai_api_key = { "cat", "/Users/bhugo/.config/.openai_api_key" }
+        openai_api_key = { "cat", (vim.fn.expand("~").."/.config/.openai_api_key") }
       }
     end,
     cmd = {
