@@ -90,25 +90,99 @@ end
 
 -- [[ Configure plugins ]]
 require('lazy').setup({
-  -- my own unpublished (and frankly unstable) Plugins
-  -- {
-  --   dir = '/Users/bhugo/code/nvim-plugins/OpenApi/'
-  -- },
-  -- {
-  --   dir = '/Users/bhugo/code/nvim-plugins/Spotify/'
-  -- },
+  {
+    -- 'bhugovilela/palette.nvim', version='0.1.0'
+    dir = '/Users/bhugo/code/nvim-plugins/palette.nvim'
+  },
   -- {
   --   dir = '/Users/bhugo/code/nvim-plugins/Secrets/'
   -- },
-  -- {
-  --   dir = '/Users/bhugo/code/nvim-plugins/GameOfLife/'
-  -- },
-  -- ChatGPT
   {
+    'mrcjkb/haskell-tools.nvim',
+    version = '^4', -- Recommended
+    lazy = false, -- This plugin is already lazy
+    config = function()
+      local ht = require('haskell-tools')
+      vim.api.nvim_create_augroup('HaskellKeymaps', { clear = true })
+      vim.api.nvim_create_autocmd('FileType', {
+          pattern = 'haskell',
+          group = 'HaskellKeymaps',
+          callback = function()
+            local bufnr = vim.api.nvim_get_current_buf()
+            local opts = { noremap = true, silent = true, buffer = bufnr, }
+            -- haskell-language-server relies heavily on codeLenses,
+            -- so auto-refresh (see advanced configuration) is enabled by default
+            vim.keymap.set('n', '<space>cl', vim.lsp.codelens.run, opts)
+            -- Hoogle search for the type signature of the definition under the cursor
+            vim.keymap.set('n', '<space>hs', ht.hoogle.hoogle_signature, opts)
+            -- Evaluate all code snippets
+            vim.keymap.set('n', '<space>ea', ht.lsp.buf_eval_all, opts)
+            vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, { desc = 'Haskell [C]ode [A]ctions', buffer = bufnr, silent = true, noremap = true })
+            -- Toggle a GHCi repl for the current package
+            -- Toggle a GHCi repl for the current buffer
+            vim.keymap.set('n', '<leader>rf', function()
+              ht.repl.toggle(vim.api.nvim_buf_get_name(0))
+            end, opts)
+            vim.keymap.set('n', '<leader>rq', ht.repl.quit, opts)
+          end
+      })
+      vim.keymap.set('n', '<leader>hr', function()
+        local filetype = vim.bo.filetype
+        if filetype == "haskell" then
+          ht.repl.toggle()
+          vim.cmd "wincmd j"
+        elseif #filetype == 0 then
+          vim.cmd "q"
+        end
+        end, { desc = "toggle Haskell Repl"})
+    end
+  },
+  {
+    'bettervim/yugen.nvim'
+  },
+  { 'tpope/vim-dadbod' },
+  { 'kristijanhusak/vim-dadbod-completion' },
+  { 'kristijanhusak/vim-dadbod-ui' },
+  {
+    'mhartington/formatter.nvim',
+    opts = (function()
+      local prettier = function()
+        return {
+          exe = "prettier",
+          args = { "--stdin-filepath", vim.api.nvim_buf_get_name(0) },
+          try_node_modules = true,
+          stdin = true
+        }
+      end
+
+      return {
+        logging = true,
+        filetype = {
+          typescriptreact = { prettier },
+          typescript = { prettier },
+          javascript = { prettier },
+          javascriptreact = { prettier },
+          json = { prettier }
+        }
+      }
+    end)()
+  },
+  {
+    -- ChatGPT
     "robitx/gp.nvim",
     config = function()
       require('gp').setup {
-        openai_api_key = { "cat", "/Users/bhugo/.config/.openai_api_key" }
+        openai_api_key = { "cat", "/Users/bhugo/.config/.openai_api_key" },
+        anthropic = {
+          endpoint = 'https://api.anthropic.com/v1/messages',
+          secret = (function() 
+            local fd = vim.loop.fs_open('/Users/bhugo/.config/.anthropic_key', "r", 438)
+            local stat = vim.loop.fs_fstat(fd)
+            local data = vim.loop.fs_read(fd, stat.size, 0)
+            vim.loop.fs_close(fd)
+            return data
+          end)()
+        }
       }
     end,
     cmd = {
@@ -130,21 +204,8 @@ require('lazy').setup({
     },
     dependencies = { "nvim-tree/nvim-web-devicons" }
   },
-  -- DAP
   {
-    dir = '/Users/bhugo/code/nvim-plugins/TextUI/',
-    dependencies = {
-      'tjdevries/stackmap.nvim'
-    }
-  },
-  {
-    dir = '/Users/bhugo/code/nvim-plugins/Spotify/',
-    dependencies = {
-      'tjdevries/stackmap.nvim',
-      '/Users/bhugo/code/nvim-plugins/TextUI/'
-    }
-  },
-  {
+    -- DAP
     'mfussenegger/nvim-dap',
     config = function()
       DAP_CONFIGURE()
@@ -172,6 +233,7 @@ require('lazy').setup({
     run = "npm install --legacy-peer-deps && npx gulp vsDebugServerBundle && mv dist out"
   },
   { -- multi cursors
+    -- TODO: multicursor.nvim seems more promising
     'mg979/vim-visual-multi'
   },
   {
@@ -189,7 +251,9 @@ require('lazy').setup({
   {
     'anuvyklack/pretty-fold.nvim',
     config = function()
-      require('pretty-fold').setup {}
+      require('pretty-fold').setup {
+        ft_ignore = { 'palette-nvim' }
+      }
     end,
     event = 'VeryLazy'
   },
@@ -213,14 +277,33 @@ require('lazy').setup({
   {
     'akinsho/toggleterm.nvim',
     version = "*",
-    opts = {
-      open_mapping = [[<c-\>]],
-      direction = 'float'
-    }
+    config = function()
+      require('toggleterm').setup({})
+      local Terminal = require('toggleterm.terminal').Terminal
+      local terminals = {}
+
+      -- This toggleterm keymap toggles a terminal per tabpage dir
+      -- ie. all tabpages with the same cwd will open the same terminal
+      -- tabpages on a different cwd will open another terminal
+      vim.keymap.set({ 'n', 'i', 't' }, [[<c-\>]], function()
+        local dir = vim.fn.getcwd(-1)
+        local path = vim.fn.split(vim.fn.getcwd(-1), '/')
+        local term = terminals[dir] or Terminal:new({
+          hidden = true,
+          dir = dir,
+          display_name = path[#path],
+          on_exit = function() terminals[dir] = nil end
+        })
+        terminals[dir] = term
+        term:toggle(nil, 'float')
+      end, { desc = 'Toggle tab terminal' })
+    end
   },
-  {
-    'nvim-ts-autotag'
-  },
+  -- {
+  --   'nvim-ts-autotag',
+  --   version = '*',
+  --   opts = {}
+  -- },
   {
     'nvim-focus/focus.nvim',
     version = '*',
@@ -304,6 +387,7 @@ require('lazy').setup({
   {
     -- Autocompletion
     'hrsh7th/nvim-cmp',
+    commit = 'b356f2c',
     dependencies = {
       -- Snippet Engine & its associated nvim-cmp source
       'L3MON4D3/LuaSnip',
@@ -314,6 +398,7 @@ require('lazy').setup({
       'hrsh7th/cmp-path',
       'hrsh7th/cmp-cmdline',
       'hrsh7th/cmp-buffer',
+      'hrsh7th/cmp-nvim-lsp-signature-help'
     },
   },
   {
@@ -391,7 +476,6 @@ require('lazy').setup({
 
         -- Text object
         map({ 'o', 'x' }, 'ih', ':<C-U>Gitsigns select_hunk<CR>', { desc = 'select git hunk' })
-        map('n', '<leader>gs', ':G<CR>', { desc = 'open git fugitive' })
       end,
     },
   },
@@ -415,7 +499,7 @@ require('lazy').setup({
     name = "catppuccin",
     priority = 1000,
     config = function()
-      vim.cmd.colorscheme 'catppuccin-macchiato'
+      -- vim.cmd.colorscheme 'catppuccin-macchiato'
     end,
   },
   {
@@ -430,16 +514,21 @@ require('lazy').setup({
     'rose-pine/neovim',
     name = 'rose-pine',
     config = function()
-      vim.defer_fn(function()
-        vim.cmd.colorscheme("rose-pine-main")
-        vim.cmd("hi IblIndent guifg=#201F30")
-        vim.cmd("hi IblScope guifg=#302E48")
-        vim.cmd("hi clear netrwMarkFile")
-        vim.cmd("hi link netrwMarkFile CurSearch")
-        require('ibl').update({})
-      end, 1)
+      -- vim.defer_fn(function()
+      --   vim.cmd.colorscheme("rose-pine-main")
+      --   vim.cmd("hi IblIndent guifg=#201F30")
+      --   vim.cmd("hi IblScope guifg=#302E48")
+      --   vim.cmd("hi clear netrwMarkFile")
+      --   vim.cmd("hi link netrwMarkFile CurSearch")
+      --   require('ibl').update({})
+      -- end, 1)
     end,
   },
+  -- {
+  --   'echasnovski/mini.statusline',
+  --   version = false,
+  --   opts = {}
+  -- },
   {
     -- Set lualine as statusline
     'nvim-lualine/lualine.nvim',
@@ -490,20 +579,6 @@ require('lazy').setup({
     },
     build = ':TSUpdate',
   },
-  {
-    'topaxi/gh-actions.nvim',
-    cmd = 'GhActions',
-    keys = {
-      { '<leader>gh', '<cmd>GhActions<cr>', desc = 'Open Github Actions' },
-    },
-    -- optional, you can also install and use `yq` instead.
-    build = 'make',
-    dependencies = { 'nvim-lua/plenary.nvim', 'MunifTanjim/nui.nvim' },
-    opts = {},
-    config = function(_, opts)
-      require('gh-actions').setup(opts)
-    end,
-  },
 })
 
 -- [[ Setting options ]]
@@ -531,13 +606,12 @@ vim.opt.foldmethod = "expr"
 vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
 vim.opt.foldtext = "v:lua.vim.treesitter.foldtext()"
 vim.opt.foldlevelstart = 9999
-vim.api.nvim_create_user_command('CWD', ':cd %:p:h', {})
-vim.api.nvim_create_user_command('TCWD', ':tcd %:p:h', {})
 vim.api.nvim_create_user_command('W', ':w', {})
 vim.g.netrw_banner = 0
 vim.g.netrw_localcopydircmd = 'cp -r'
 vim.o.splitright = true
 vim.o.splitbelow = true
+vim.o.tildeop = true
 
 -- [[ Neovide ]]
 -- Allow clipboard copy paste in neovim
@@ -547,7 +621,8 @@ vim.api.nvim_set_keymap('!', '<D-v>', '<C-R>+', { noremap = true, silent = true 
 vim.api.nvim_set_keymap('t', '<D-v>', '<C-R>+', { noremap = true, silent = true })
 
 if vim.g.neovide then
-  vim.o.guifont = "MesloLGL Nerd Font Mono:h14:#e-subpixelantialias:#h-none"
+  vim.o.guifont = "MesloLGL Nerd Font Mono:h17:#e-subpixelantialias:#h-none"
+  vim.o.guifont = "MesloLGS NF:h17:#e-subpixelantialias:#h-none"
 end
 
 -- [[ keymaps ]]
@@ -586,14 +661,18 @@ vim.keymap.set("n", "zf2", ":set foldlevel=1<cr>")
 vim.keymap.set("n", "zf3", ":set foldlevel=2<cr>")
 vim.keymap.set("n", "zf4", ":set foldlevel=3<cr>")
 -- diagnostic
-vim.keymap.set("n", "]d", function() vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.ERROR }) end, { desc = 'go to next error diagnostic' })
-vim.keymap.set("n", "[d", function() vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.ERROR }) end, { desc = 'go to prev error diagnostic' })
+vim.keymap.set("n", "]d", function() vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.ERROR }) end,
+  { desc = 'go to next error diagnostic' })
+vim.keymap.set("n", "[d", function() vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.ERROR }) end,
+  { desc = 'go to prev error diagnostic' })
 vim.keymap.set('n', '<leader>gl', vim.diagnostic.open_float, { desc = 'Open floating diagnostic message' })
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostics list' })
 vim.keymap.set("n", "-", vim.cmd.Ex)
 vim.keymap.set("n", "<leader>nn", ":NvimTreeFocus<CR>", { desc = 'Focus Nvim Tree' })
 vim.keymap.set("n", "<leader>nt", ":NvimTreeToggle<CR>", { desc = 'Toggle Nvim Tree' })
 vim.keymap.set("n", "<leader>nf", ":NvimTreeFindFile<CR>", { desc = 'Find file on Nvim Tree' })
+
+vim.keymap.set("n", "<S-Enter>", "<cmd>cn<cr>")
 
 require('bhugo.Other')
 vim.keymap.set("n", "<leader>,a", ":Other<CR>", { silent = true })
@@ -607,8 +686,6 @@ vim.keymap.set("v", "gx", function()
   require('bhugo.xref').jump_to_visual_xref()
 end, { silent = true, desc = "Jump to the xref (file:line:col) in visual selection" })
 
-vim.keymap.set("n", "<leader>t", "<Plug>PlenaryTestFile", { desc = 'Run Plenary Test'})
-
 -- [[ Highlight on yank ]]
 local highlight_group = vim.api.nvim_create_augroup('YankHighlight', { clear = true })
 vim.api.nvim_create_autocmd('TextYankPost', {
@@ -621,7 +698,7 @@ vim.api.nvim_create_autocmd('TextYankPost', {
 
 
 -- overwrite Ex with Oil
-vim.api.nvim_create_user_command('Explore', 'Oil', { desc='launch Oil'})
+vim.api.nvim_create_user_command('Explore', 'Oil', { desc = 'launch Oil' })
 
 -- [[ Configure Telescope ]]
 require('telescope').setup {
@@ -653,8 +730,11 @@ local function telescope_keymaps()
   vim.keymap.set('n', '<leader>ff', builtin.find_files, { desc = '[f]ind [f]iles' })
   vim.keymap.set('n', '<leader>pf', builtin.git_files, { desc = 'find git files' })
   vim.keymap.set('n', '<leader>pg', builtin.live_grep, { desc = '[p]roject [g]rep, find in project' })
-  vim.keymap.set('n', '<leader>bg', function() builtin.live_grep({ grep_open_files = true }) end, { desc = '[b]uffer [g]rep, find in open buffers' })
-  vim.keymap.set('n', '<leader>po', function() builtin.live_grep { grep_open_files = true, prompt_title = 'Live Grep in Open Files' } end, { desc = '[p]roject grep in [o]pen files' })
+  vim.keymap.set('n', '<leader>bg', function() builtin.live_grep({ grep_open_files = true }) end,
+    { desc = '[b]uffer [g]rep, find in open buffers' })
+  vim.keymap.set('n', '<leader>po',
+    function() builtin.live_grep { grep_open_files = true, prompt_title = 'Live Grep in Open Files' } end,
+    { desc = '[p]roject grep in [o]pen files' })
   vim.keymap.set('n', '<leader>fr', builtin.lsp_references, { desc = '[f]ind [r]eferences' })
   vim.keymap.set('n', '<leader>fb', builtin.buffers, { desc = '[f]ind [b]uffers' })
   vim.keymap.set('n', '<leader>fH', builtin.keymaps, { desc = '[f]ind [h]elp keymaps' })
@@ -765,8 +845,15 @@ local on_attach = function(_, bufnr)
   nmap('K', vim.lsp.buf.hover, 'Hover Documentation')
   nmap('<C-k>', vim.lsp.buf.signature_help, 'Signature Documentation')
   nmap('gD', vim.lsp.buf.declaration, '[G]oto [D]eclaration')
+
   vim.keymap.set("n", "<leader>FF", function()
-    vim.lsp.buf.format()
+    local filetype = vim.o.filetype
+    local formatterFiletypes = require('formatter.config').values.filetype
+    if formatterFiletypes[filetype] ~= nil then
+      vim.cmd [[FormatWrite]]
+    else
+      vim.lsp.buf.format()
+    end
   end, { desc = '[F]ormat [F]ile' })
   vim.api.nvim_buf_create_user_command(bufnr, 'Format', function(_)
     vim.lsp.buf.format()
@@ -814,7 +901,6 @@ local servers = {
   -- html = { filetypes = { 'html', 'twig', 'hbs'} },
 
   eslint = {},
-  tsserver = {},
   lua_ls = {
     Lua = {
       workspace = { checkThirdParty = false },
@@ -825,6 +911,10 @@ local servers = {
   },
   jsonls = {
     filetypes = { 'json', 'jsonc' },
+  },
+  ltex = {
+    cmd = { "JAVA_HOME='/Users/bhugo/Library/Java/JavaVirtualMachines/openjdk-17.0.2/Contents/Home' ltex-ls" },
+    filetypes = { "markdown", "text" },
   }
 }
 
@@ -885,6 +975,7 @@ cmp.setup {
     { name = 'nvim_lsp' },
     { name = 'luasnip' },
     { name = 'path' },
+    { name = "nvim_lsp_signature_help" }
   },
 }
 -- Use buffer source for `/` and `?` (if you enabled `native_menu`, this won't work anymore).
@@ -981,10 +1072,7 @@ vim.api.nvim_create_user_command("DeleteHiddenBuffers", DeleteHiddenBuffers, {
   desc = "Deletes hidden buffers"
 })
 
--- TODO
--- visual select xref
---
---
+
 
 -- POSH ---
 local augroup = vim.api.nvim_create_augroup('Posh', { clear = true })
@@ -1026,27 +1114,27 @@ local function dap_menu()
       -- require("dap").configurations[language] = {
     elseif choice == "New Session" then
       local ft = vim.api.nvim_buf_get_option(0, 'filetype')
-      local configs =  dap.configurations[ft]
+      local configs = dap.configurations[ft]
       local names = {}
       local configsPerName = {}
       for i, obj in ipairs(configs) do
-          table.insert(names, obj.name)
-          configsPerName[obj.name] = obj
+        table.insert(names, obj.name)
+        configsPerName[obj.name] = obj
       end
       vim.ui.select(names, { prompt = "Select a base" }, function(name)
-          if not name then return end
-          local config = configsPerName[name]
-          print(vim.inspect(config))
-          local clone = vim.tbl_deep_extend('keep', {}, config)
-          vim.ui.input({prompt='comma separated args:'}, function(argStr) 
-            local args = vim.split(argStr, ',', { plain=true })
-            clone.args = args
-            clone.name = name..' with '..argStr
-            table.insert(dap.configurations[ft], clone)
-            print('running: '.. vim.inspect(clone))
-            dap.run(clone)
-          end)
+        if not name then return end
+        local config = configsPerName[name]
+        print(vim.inspect(config))
+        local clone = vim.tbl_deep_extend('keep', {}, config)
+        vim.ui.input({ prompt = 'comma separated args:' }, function(argStr)
+          local args = vim.split(argStr, ',', { plain = true })
+          clone.args = args
+          clone.name = name .. ' with ' .. argStr
+          table.insert(dap.configurations[ft], clone)
+          print('running: ' .. vim.inspect(clone))
+          dap.run(clone)
         end)
+      end)
       print(ft)
     elseif choice == "Next" then
       dap.step_over()
@@ -1064,9 +1152,9 @@ end
 
 vim.keymap.set("n", ",d", function() dap_menu() end, { desc = "open dap menu" })
 
--- DASHBOARD / SPLASHSCREEN
-local showSplashScreen = require('bhugo.SplashScreen')
-showSplashScreen()
+-- -- DASHBOARD / SPLASHSCREEN
+-- local showSplashScreen = require('bhugo.SplashScreen')
+-- showSplashScreen()
 
 require('bhugo.Recent').add_cwd(nil, true, 5000)
 
@@ -1082,12 +1170,97 @@ vim.api.nvim_create_autocmd({ 'BufNewFile', 'BufRead' }, {
   pattern = "*.tula",
   callback = function()
     -- CloneHighlightAndMakeBold("Keyword", "boldKeyword")
-    vim.cmd[[setfiletype tula]]
-    vim.cmd[[setlocal syntax=tula]]
-    vim.cmd[[setlocal commentstring=--%s]]
-    vim.cmd[[set conceallevel=2]]
-    vim.cmd[[hi link Conceal Keyword]]
+    vim.cmd [[setfiletype tula]]
+    vim.cmd [[setlocal syntax=tula]]
+    vim.cmd [[setlocal commentstring=--%s]]
+    vim.cmd [[set conceallevel=2]]
+    vim.cmd [[hi link Conceal Keyword]]
     -- CloneHighlightAndMakeBold("Keyword", "Conceal")
   end
 })
 
+vim.api.nvim_create_user_command("Config", function()
+  vim.cmd("tabnew | tcd ~/.config/nvim | e init.lua | let t:tabname='cwd'")
+end, {
+  desc = "Opens the nvim config in a new tab"
+})
+
+vim.cmd [[autocmd FileType markdown setlocal spell]]
+
+--Interpret
+vim.cmd [[
+  autocmd FileType javascript let b:interpreter = "node"
+  autocmd FileType python let b:interpreter = "python"
+]]
+
+vim.keymap.set("x", "<leader>rr", function()
+  local start_pos = vim.fn.getpos("v")
+  local end_pos = vim.fn.getpos(".")
+
+  local start_line = start_pos[2]
+  local start_col = start_pos[3]
+  local end_line = end_pos[2]
+  local end_col = end_pos[3]
+
+  local lines = vim.fn.getline(start_line, end_line)
+
+  if #lines == 1 then
+    lines[1] = string.sub(lines[1], start_col, end_col)
+  else
+    lines[1] = string.sub(lines[1], start_col)
+    lines[#lines] = string.sub(lines[#lines], 1, end_col)
+  end
+
+  -- Join the lines into a single JavaScript expression
+  local selected_text = table.concat(lines, "\n")
+
+  -- Execute node with the selected text
+  local result = vim.fn.system({ 'node', '-p', selected_text })
+
+  -- Print the result
+  vim.api.nvim_echo({ { result, 'Normal' } }, false, {})
+end, { desc = 'run (interpret) current selection' })
+
+vim.keymap.set("n", "<leader>rr", function()
+  local interpreter = vim.b.interpreter or "node"
+  vim.cmd(string.format('w | w ! %s %%', interpreter))
+end, { desc = "run (interpret) current file" })
+
+-- Tabline ================================================
+
+-- This Tabline displays:
+-- t:tabname when set
+-- cwd when t:tabname='cwd'
+-- parent_dir/file otherwise
+function CustomTabLine()
+  local function tabLabel(n)
+    local tabname = vim.fn.gettabvar(n, 'tabname')
+    if tabname == 'cwd' or tabname == 'pwd' then
+      local cwd = vim.fn.getcwd(-1, n)
+      return vim.fn.fnamemodify(cwd, ':t')
+    elseif #tabname > 0 then
+      return tabname
+    end
+
+    local buflist = vim.fn.tabpagebuflist(n)
+    local winnr = vim.fn.tabpagewinnr(n)
+    local full_bufname = vim.fn.bufname(buflist[winnr])
+    local dir_name = vim.fn.fnamemodify(full_bufname, ':h:t')
+    local file_name = vim.fn.fnamemodify(full_bufname, ':t')
+    return dir_name .. '/' .. file_name
+  end
+
+  local s = ''
+  local num_tabs = vim.fn.tabpagenr('$')
+  for i = 1, num_tabs do
+    local hl = (i == vim.fn.tabpagenr()) and '%#TabLineSel#' or '%#TabLine#'
+    local label = tabLabel(i)
+    s = s .. hl .. '%' .. i .. 'T' .. ' ' .. label .. ' '
+  end
+  if num_tabs > 1 then
+    s = s .. '%#TabLineFill#%T' .. '%=%#TabLine#%999Xx'
+  end
+  return s
+end
+
+vim.o.tabline = '%!v:lua.CustomTabLine()'
