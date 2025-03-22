@@ -1,5 +1,5 @@
 local Path = require("plenary.path")
-local splashscreen = '/Users/bhugo/.config/nvim/splashscreen.txt'
+local splashscreen = vim.fn.stdpath('config')..'/splashscreen.txt'
 local str_utils = require('bhugo.SplashScreen.lines')
 local widget = require('bhugo.SplashScreen.widget')
 local take = require('bhugo.SplashScreen.utils').take

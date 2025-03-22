@@ -89,7 +89,10 @@ local function get_sys_widget(height)
 	local term = 'Terminal: '..execute('echo $TERM_PROGRAM')
 	local nvim_version = vim.version()
 	nvim_version = 'NVIM: '..nvim_version.major..'.'..nvim_version.minor..'.'..nvim_version.patch
-	local os_version = 'OS: '..execute([[sw_vers | head -n 2 | awk '{ print $2 }' | xargs]])
+	local os_version = 'OS: '..Lib.WhenOs {
+		Linux = function() return execute([[cat /etc/os-release | grep PRETTY_NAME | sed 's/.*="\(.*\)"/\1/']]) end,
+		Darwin = function() return execute([[sw_vers | head -n 2 | awk '{ print $2 }' | xargs]]) end
+	}
 
 	local lines = {
 		user_host,
@@ -98,6 +101,7 @@ local function get_sys_widget(height)
 		nvim_version,
 		os_version
 	}
+	
 
 	-- padding needed to match target height
 	local bottom_padding = height - #lines - 2

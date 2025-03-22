@@ -6,6 +6,22 @@
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+Lib = {
+  IsLinux = function()
+    return vim.loop.os_uname().sysname == 'Linux'
+  end,
+
+  IsMac = function()
+    return vim.loop.os_uname().sysname == 'Darwin'
+  end,
+
+  WhenOs = function(table)
+    local entry = table[vim.loop.os_uname().sysname]
+    if not entry then return end
+    return entry()
+  end
+}
+
 -- [[ Install `lazy.nvim` plugin manager ]]
 local lazypath = vim.fn.stdpath 'data' .. '/lazy/lazy.nvim'
 if not vim.loop.fs_stat(lazypath) then
@@ -172,17 +188,7 @@ require('lazy').setup({
     "robitx/gp.nvim",
     config = function()
       require('gp').setup {
-        openai_api_key = { "cat", "/Users/bhugo/.config/.openai_api_key" },
-        anthropic = {
-          endpoint = 'https://api.anthropic.com/v1/messages',
-          secret = (function() 
-            local fd = vim.loop.fs_open('/Users/bhugo/.config/.anthropic_key', "r", 438)
-            local stat = vim.loop.fs_fstat(fd)
-            local data = vim.loop.fs_read(fd, stat.size, 0)
-            vim.loop.fs_close(fd)
-            return data
-          end)()
-        }
+        openai_api_key = { "cat", (vim.fn.expand("~").."/.config/.openai_api_key") }
       }
     end,
     cmd = {

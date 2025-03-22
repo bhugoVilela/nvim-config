@@ -14,8 +14,14 @@ local data_path = root_dir .. '/holidays.json'
 ---@field holidays Holiday[]
 
 local function daysUntil(dateA, dateB)
-	local timestampA = utils.execute("date -jf '%Y-%m-%d' '"..dateA.."' '+%s'")
-	local timestampB = utils.execute("date -jf '%Y-%m-%d' '"..dateB.."' '+%s'")
+	local timestampA, timestampB = Lib.WhenOs {
+		Linux = function()
+				return utils.execute("date -d '"..dateA.." 00:00' +%s"), utils.execute("date -d '"..dateB.." 00:00' +%s")
+		end,
+		Darwin = function() 
+				return utils.execute("date -jf '%Y-%m-%d' '"..dateA.."' '+%s'"), utils.execute("date -jf '%Y-%m-%d' '"..dateB.."' '+%s'")
+		end
+	}
 	local diff = math.abs(timestampA - timestampB)
 	local diffInDays = math.ceil(diff / (24 * 60 * 60))
 	return diffInDays
