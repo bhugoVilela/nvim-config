@@ -10,7 +10,7 @@
 local M = {}
 local utils = require('bhugo.Other.utils')
 
--- this is an addon, 
+-- this is an addon,
 -- it returns { execute: a function that executes the parsing, extensions: a table with extensions on which this will run }
 local function view_and_style()
 	local styles = {
