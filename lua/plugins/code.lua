@@ -1,7 +1,6 @@
 -- Plugins that are related to code editting
 
 return {
-
   { -- multi cursors
     -- TODO: multicursor.nvim seems more promising
     'mg979/vim-visual-multi'

@@ -19,7 +19,8 @@ return {
       require('focus').setup({
         ui = {
           signcolumn = false,
-          relativenumber = true
+          relativenumber = true,
+          number = true
         },
         autoresize = {
           minwidth = 20,
@@ -147,25 +148,25 @@ return {
     config = function()
       require('ibl').setup({})
     end,
-  },
-  {
-    -- Set lualine as statusline
-    'nvim-lualine/lualine.nvim',
-    opts = {
-      sections = {
-        lualine_c = {
-          { '%<.../%{expand(\'%:h:t\')}/%{expand(\'%:t\')}' }
-        },
-        lualine_x = { 'filetype' }
-      },
-      inactive_sections = {
-        lualine_c = {
-          { '%<.../%{expand(\'%:h:t\')}/%{expand(\'%:t\')}' }
-        }
-      }
-    },
-    dependencies = {
-      'nvim-tree/nvim-web-devicons'
-    }
   }
+  -- {
+  --   -- Set lualine as statusline
+  --   'nvim-lualine/lualine.nvim',
+  --   opts = {
+  --     sections = {
+  --       lualine_c = {
+  --         { '%<.../%{expand(\'%:h:t\')}/%{expand(\'%:t\')}' }
+  --       },
+  --       lualine_x = { 'filetype' }
+  --     },
+  --     inactive_sections = {
+  --       lualine_c = {
+  --         { '%<.../%{expand(\'%:h:t\')}/%{expand(\'%:t\')}' }
+  --       }
+  --     }
+  --   },
+  --   dependencies = {
+  --     'nvim-tree/nvim-web-devicons'
+  --   }
+  -- }
 }

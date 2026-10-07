@@ -5,6 +5,7 @@
 
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ','
+vim.o.exrc = true
 
 local utils = require('bhugo.utils')
 
@@ -27,6 +28,7 @@ require('lazy').setup({
 vim.opt.guicursor = ""
 vim.opt.nu = true
 vim.opt.relativenumber = true
+vim.opt.number = true
 vim.opt.tabstop = 4
 vim.opt.softtabstop = 4
 vim.opt.shiftwidth = 4
@@ -74,7 +76,7 @@ vim.keymap.set("i", "<C-l>", "$", { desc = '^' })
 vim.keymap.set("v", "<C-h>", "^", { desc = '^' })
 vim.keymap.set("v", "<C-l>", "$", { desc = '^' })
 -- map jk to escape; esc to NOOP
-vim.keymap.set("t", "<Esc>", "<C-\\><C-n>")
+-- vim.keymap.set("t", "<Esc>", "<C-\\><C-n>")
 vim.keymap.set("t", "jk", "<C-\\><C-n>", { desc = 'escape' })
 vim.keymap.set("i", "jk", "<Esc>", { desc = 'escape' })
 vim.keymap.set("n", "<C-p>", "<C-^>", { desc = 'jump to alternate file' })
@@ -95,7 +97,10 @@ vim.keymap.set("n", "]d", function() vim.diagnostic.goto_next({ severity = vim.d
 vim.keymap.set("n", "[d", function() vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.ERROR }) end,
 	{ desc = 'go to prev error diagnostic' })
 vim.keymap.set('n', '<leader>gl', vim.diagnostic.open_float, { desc = 'Open floating diagnostic message' })
-vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostics list' })
+vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open local diagnostics list' })
+vim.keymap.set('n', '<leader>Q', function()
+	vim.diagnostic.setqflist({ severity = { vim.diagnostic.severity.WARN, vim.diagnostic.severity.ERROR } })
+end, { desc = 'Open diagnostics list' })
 vim.keymap.set("n", "-", vim.cmd.Ex)
 vim.keymap.set("n", "<leader>nn", ":NvimTreeFocus<CR>", { desc = 'Focus Nvim Tree' })
 vim.keymap.set("n", "<leader>nt", ":NvimTreeToggle<CR>", { desc = 'Toggle Nvim Tree' })
@@ -108,6 +113,8 @@ require('bhugo.Other')
 vim.keymap.set("n", "<leader>,a", ":Other<CR>", { silent = true })
 vim.keymap.set("n", "<leader>,A", ":OtherList<CR>", { silent = true })
 
+require('bhugo.Todo').setup()
+vim.keymap.set("n", "<leader>t", ":Todo<CR>", { desc = 'Open a TODO file' })
 
 -- [[ Highlight on yank ]]
 local highlight_group = vim.api.nvim_create_augroup('YankHighlight', { clear = true })
@@ -146,3 +153,85 @@ end, {
 })
 
 require('bhugo.tabline')
+
+-- [[ Filetype detection for Hush language ]]
+vim.filetype.add({
+	extension = {
+		hush = "hush",
+	},
+})
+
+-- add templatehaskell to nvim-treesitter
+vim.api.nvim_create_autocmd('User', {
+	pattern = 'TSUpdate',
+	callback = function()
+		require('nvim-treesitter.parsers').haskell_literate = {
+			install_info = {
+				path = '~/.config/nvim/tree-sitter-haskell-literate',
+				-- url = 'https://github.com/LaurentRDC/tree-sitter-haskell-literate',
+				-- location = 'parser', -- only needed if the parser is in subdirectory of a "monorepo"
+				-- generate = true, -- only needed if repo does not contain pre-generated `src/parser.c`
+				-- generate_from_json = false, -- only needed if repo does not contain `src/grammar.json` either -- WARNING: requires `node` for tree-sitter-cli <0.26.0!
+				queries = 'queries', -- also install queries from given directory
+			},
+		}
+	end
+})
+vim.treesitter.language.register('haskell_literate', { 'lhaskell' })
+
+vim.api.nvim_create_autocmd('FileType', {
+	callback = function()
+		local buf = vim.api.nvim_get_current_buf()
+		local lang = vim.treesitter.language.get_lang(vim.bo[buf].filetype)
+		if lang and pcall(vim.treesitter.get_parser, buf, lang) then
+			vim.treesitter.start(buf, lang)
+		end
+	end,
+})
+
+vim.keymap.set("n", "<leader>ct", function()
+	local found = false
+	vim.lsp.buf.code_action({
+		filter = function(action)
+			if found or not action.title then
+				return false
+			end
+			local match = string.match(action.title, "Fix this")
+			if match then 
+				found = true 
+				return true
+			end
+			return not not match
+		end,
+		apply = true
+	})
+end, { desc = "Fix this diagnostic error" })
+
+vim.api.nvim_create_user_command("Typecheck", function()
+	vim.cmd('compiler npm-typecheck | make')
+end, {
+	desc = "Run npm-typecheck compiler"
+})
+
+vim.api.nvim_create_user_command("Lint", function()
+	vim.cmd('compiler npm-lint | make')
+end, {
+	desc = "Run npm-lint compiler"
+})
+
+vim.api.nvim_create_user_command("GetCurrentLine", function(opts)
+	local location = vim.fn.expand('%') .. ':' .. vim.fn.line('.')
+	if opts.bang then
+		vim.fn.setreg('*', location)
+		print('Copied to clipboard: ' .. location)
+	else
+		vim.fn.setreg('"', location)
+		print(location)
+	end
+end, {
+	bang = true,
+	desc = "Copy filename:line to register (! for system clipboard)"
+})
+
+vim.filetype.add({ extension = { purs = 'purescript' }})
+
