@@ -1,11 +1,4 @@
-return {
-  {
-    "iamcco/markdown-preview.nvim",
-    cmd = { "MarkdownPreviewToggle", "MarkdownPreview", "MarkdownPreviewStop" },
-    build = "cd app && yarn install",
-    init = function()
-      vim.g.mkdp_filetypes = { "markdown" }
-    end,
-    ft = { "markdown" },
-  }
-}
+local gh = require('bhugo.utils').gh
+
+vim.g.mkdp_filetypes = { "markdown" }
+vim.pack.add({ gh('iamcco/markdown-preview.nvim') })

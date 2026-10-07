@@ -1,36 +1,25 @@
 -- Code formatter plugins
+local gh = require('bhugo.utils').gh
 
-return {
-	{ --overrides lsp.format with prettier for some filetypes
-		'mhartington/formatter.nvim',
-		ft = {
-			"typescriptreact",
-			"typescript",
-			"javascript",
-			"javascriptreact",
-			"json"
-		},
+vim.pack.add({ gh('mhartington/formatter.nvim') })
 
-		opts = (function()
-			local prettier = function()
-				return {
-					exe = "prettier",
-					args = { "--stdin-filepath", vim.api.nvim_buf_get_name(0) },
-					try_node_modules = true,
-					stdin = true
-				}
-			end
-
-			return {
-				logging = true,
-				filetype = {
-					typescriptreact = { prettier },
-					typescript = { prettier },
-					javascript = { prettier },
-					javascriptreact = { prettier },
-					json = { prettier }
-				}
-			}
-		end)()
+--overrides lsp.format with prettier for some filetypes
+local prettier = function()
+	return {
+		exe = "prettier",
+		args = { "--stdin-filepath", vim.api.nvim_buf_get_name(0) },
+		try_node_modules = true,
+		stdin = true
 	}
-}
+end
+
+require('formatter').setup({
+	logging = true,
+	filetype = {
+		typescriptreact = { prettier },
+		typescript = { prettier },
+		javascript = { prettier },
+		javascriptreact = { prettier },
+		json = { prettier }
+	}
+})

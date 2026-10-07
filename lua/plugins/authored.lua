@@ -1,5 +1,3 @@
 -- Plugins created by me
-
-return {
-  { 'bhugoVilela/palette.nvim', dev = true }
-}
+-- Local checkouts live in ~/code/nvim-plugins; add them to the runtimepath to use them, ie.
+-- vim.opt.rtp:prepend(vim.fn.expand('~/code/nvim-plugins/palette.nvim'))

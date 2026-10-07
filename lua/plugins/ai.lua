@@ -1,3 +1,1 @@
-return {
-  -- TODO place to add AI clients
-}
+-- TODO place to add AI clients

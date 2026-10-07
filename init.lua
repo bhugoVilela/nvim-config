@@ -7,26 +7,13 @@ vim.g.mapleader = ' '
 vim.g.maplocalleader = ','
 vim.o.exrc = true
 
-local utils = require('bhugo.utils')
+require('bhugo.utils').setup()
 
-utils.installLazy()
-
-require('lazy').setup({
-	spec = { import = "plugins" },
-
-	checker = { enabled = false },
-
-	dev = {
-		path = '~/code/nvim-plugins',
-		---@type string[] plugins that match these patterns will use your local versions instead of being fetched from GitHub
-		patterns = {}, -- For example {"folke"}
-	},
-
-})
+-- Experimental new message/cmdline UI (formerly vim._extui)
+require('vim._core.ui2').enable({})
 
 -- [[ vim options ]]
 vim.opt.guicursor = ""
-vim.opt.nu = true
 vim.opt.relativenumber = true
 vim.opt.number = true
 vim.opt.tabstop = 4
@@ -37,9 +24,8 @@ vim.opt.hlsearch = false
 vim.opt.incsearch = true
 vim.opt.termguicolors = true
 vim.opt.scrolloff = 8
-vim.wo.signcolumn = "yes"
-vim.opt.updatetime = 50
-vim.g.mapleader = " "
+vim.o.signcolumn = "yes"
+vim.opt.updatetime = 250
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
 vim.opt.smartindent = true
@@ -47,7 +33,7 @@ vim.opt.mouse = ""
 vim.opt.swapfile = false
 vim.o.completeopt = 'menuone,noselect'
 vim.opt.foldmethod = "expr"
-vim.opt.foldexpr = "nvim_treesitter#foldexpr()"
+vim.opt.foldexpr = "v:lua.vim.treesitter.foldexpr()"
 vim.opt.foldtext = "v:lua.vim.treesitter.foldtext()"
 vim.opt.foldlevelstart = 9999
 vim.api.nvim_create_user_command('W', ':w', {})
@@ -56,6 +42,40 @@ vim.g.netrw_localcopydircmd = 'cp -r'
 vim.o.splitright = true
 vim.o.splitbelow = true
 vim.o.tildeop = true
+
+-- [[ Plugins (vim.pack) ]]
+-- add templatehaskell to nvim-treesitter
+vim.api.nvim_create_autocmd('User', {
+	pattern = 'TSUpdate',
+	callback = function()
+		require('nvim-treesitter.parsers').haskell_literate = {
+			install_info = {
+				path = '~/.config/nvim/tree-sitter-haskell-literate',
+				-- url = 'https://github.com/LaurentRDC/tree-sitter-haskell-literate',
+				-- location = 'parser', -- only needed if the parser is in subdirectory of a "monorepo"
+				-- generate = true, -- only needed if repo does not contain pre-generated `src/parser.c`
+				-- generate_from_json = false, -- only needed if repo does not contain `src/grammar.json` either -- WARNING: requires `node` for tree-sitter-cli <0.26.0!
+				queries = 'queries', -- also install queries from given directory
+			},
+		}
+	end
+})
+require('plugins.hooks')
+require('plugins.colorschemes')
+require('plugins.code')
+require('plugins.treesitter')
+require('plugins.telescope')
+require('plugins.blink')
+require('plugins.lsp')
+require('plugins.formatters')
+require('plugins.oil')
+require('plugins.nvim-tree')
+require('plugins.terminal')
+require('plugins.ui')
+require('plugins.undotree')
+require('plugins.markdown')
+require('plugins.authored')
+require('plugins.ai')
 
 -- [[vim keymaps]]
 vim.keymap.set("n", "<leader>ex", vim.cmd.Ex, { desc = 'open netrw' })
@@ -92,9 +112,9 @@ vim.keymap.set("n", "zf2", ":set foldlevel=1<cr>")
 vim.keymap.set("n", "zf3", ":set foldlevel=2<cr>")
 vim.keymap.set("n", "zf4", ":set foldlevel=3<cr>")
 -- diagnostic
-vim.keymap.set("n", "]d", function() vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.ERROR }) end,
+vim.keymap.set("n", "]d", function() vim.diagnostic.jump({ count = 1, severity = vim.diagnostic.severity.ERROR }) end,
 	{ desc = 'go to next error diagnostic' })
-vim.keymap.set("n", "[d", function() vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.ERROR }) end,
+vim.keymap.set("n", "[d", function() vim.diagnostic.jump({ count = -1, severity = vim.diagnostic.severity.ERROR }) end,
 	{ desc = 'go to prev error diagnostic' })
 vim.keymap.set('n', '<leader>gl', vim.diagnostic.open_float, { desc = 'Open floating diagnostic message' })
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open local diagnostics list' })
@@ -120,7 +140,7 @@ vim.keymap.set("n", "<leader>t", ":Todo<CR>", { desc = 'Open a TODO file' })
 local highlight_group = vim.api.nvim_create_augroup('YankHighlight', { clear = true })
 vim.api.nvim_create_autocmd('TextYankPost', {
 	callback = function()
-		vim.highlight.on_yank({ timeout = 200 })
+		vim.hl.on_yank({ timeout = 200 })
 	end,
 	group = highlight_group,
 	pattern = '*',
@@ -132,7 +152,7 @@ function DeleteHiddenBuffers()
 	local bufs = {}
 	for idx, buf in ipairs(allbufs) do
 		local bufnr = buf.bufnr
-		local isTerm = vim.api.nvim_buf_get_option(bufnr, 'buftype') == 'terminal'
+		local isTerm = vim.bo[bufnr].buftype == 'terminal'
 		if buf.listed == 1 and buf.hidden == 1 and buf.loaded == 1 and buf.changed == 0 and not isTerm then
 			table.insert(bufs, buf.name)
 			pcall(vim.api.nvim_buf_delete, bufnr, {})
@@ -161,29 +181,17 @@ vim.filetype.add({
 	},
 })
 
--- add templatehaskell to nvim-treesitter
-vim.api.nvim_create_autocmd('User', {
-	pattern = 'TSUpdate',
-	callback = function()
-		require('nvim-treesitter.parsers').haskell_literate = {
-			install_info = {
-				path = '~/.config/nvim/tree-sitter-haskell-literate',
-				-- url = 'https://github.com/LaurentRDC/tree-sitter-haskell-literate',
-				-- location = 'parser', -- only needed if the parser is in subdirectory of a "monorepo"
-				-- generate = true, -- only needed if repo does not contain pre-generated `src/parser.c`
-				-- generate_from_json = false, -- only needed if repo does not contain `src/grammar.json` either -- WARNING: requires `node` for tree-sitter-cli <0.26.0!
-				queries = 'queries', -- also install queries from given directory
-			},
-		}
-	end
-})
 vim.treesitter.language.register('haskell_literate', { 'lhaskell' })
 
 vim.api.nvim_create_autocmd('FileType', {
+	group = vim.api.nvim_create_augroup('my.treesitter', { clear = true }),
 	callback = function()
 		local buf = vim.api.nvim_get_current_buf()
+		if vim.b[buf].bigfile then return end
 		local lang = vim.treesitter.language.get_lang(vim.bo[buf].filetype)
-		if lang and pcall(vim.treesitter.get_parser, buf, lang) then
+		-- get_parser returns nil (rather than throwing) when no parser is installed
+		local ok, parser = pcall(vim.treesitter.get_parser, buf, lang)
+		if lang and ok and parser then
 			vim.treesitter.start(buf, lang)
 		end
 	end,
